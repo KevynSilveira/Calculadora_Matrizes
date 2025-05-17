@@ -1,5 +1,3 @@
-# logic/matrix_operations.py
-
 def print_matrix(matrix, name="Matrix"): # Função auxiliar para testes
     print(f"{name}:")
     if not matrix or not isinstance(matrix, list) or not all(isinstance(row, list) for row in matrix):

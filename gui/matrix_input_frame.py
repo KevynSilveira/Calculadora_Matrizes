@@ -1,4 +1,3 @@
-# gui/matrix_input_frame.py
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -6,12 +5,12 @@ class MatrixInputFrame(ttk.Frame):
     def __init__(self, master, title="Matriz", max_dim=10):
         super().__init__(master, padding="0 0 0 0")
         self.master = master
-        self.title_text_default = title # Salva o título padrão original
+        self.title_text_default = title
         self.max_dim = max_dim
         self.entries = []
         self._is_enabled = True
 
-        self.title_label = ttk.Label(self, text=self.title_text_default, style='Title.TLabel') # Usa o default na criação
+        self.title_label = ttk.Label(self, text=self.title_text_default, style='Title.TLabel')
         self.title_label.grid(row=0, column=0, columnspan=4, pady=(0, 10), sticky="w")
 
         dim_frame = ttk.Frame(self)
@@ -33,7 +32,7 @@ class MatrixInputFrame(ttk.Frame):
         self.create_matrix_entries()
 
     def update_title_text(self, new_title_text=""):
-        if not new_title_text: # Se a string for vazia, volta ao título default
+        if not new_title_text:
             self.title_label.config(text=self.title_text_default)
         else:
             self.title_label.config(text=new_title_text)

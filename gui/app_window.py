@@ -1,4 +1,3 @@
-# gui/app_window.py
 import tkinter as tk
 from tkinter import ttk, messagebox
 from gui.matrix_input_frame import MatrixInputFrame
@@ -68,7 +67,7 @@ class AppWindow(tk.Tk):
         "Resolver AX = B (pela Inversa)": "solve_axb",
         # --- Análise de Matriz A ---
         "Determinante de A": "det_a",
-        "Inversa de A": "inverse_a", # Se implementado separadamente
+        "Inversa de A": "inverse_a",
         "Transposta de A": "transpose_a",
         # --- Operações entre Matrizes ---
         "A + B (Soma)": "+",
@@ -216,7 +215,3 @@ class AppWindow(tk.Tk):
         self.result_text.config(state=tk.NORMAL); self.result_text.delete("1.0", tk.END); self.result_text.config(state=tk.DISABLED)
         self.operation_combobox.set(list(self.operations_map.keys())[0])
         self.on_operation_change()
-
-# if __name__ == '__main__':
-#     app = AppWindow()
-#     app.mainloop()
