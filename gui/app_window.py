@@ -1,3 +1,4 @@
+# gui/app_window.py
 import tkinter as tk
 from tkinter import ttk, messagebox
 from gui.matrix_input_frame import MatrixInputFrame
@@ -16,6 +17,7 @@ class AppWindow(tk.Tk):
         self.ACCENT_COLOR = "#007AFF"
         self.BORDER_COLOR = "#d0d0d0"
         self.ACCENT_TEXT_COLOR = "#ffffff"
+        self.EPSILON = 1e-12 # Tolerância para considerar um número como zero
 
         self.configure(background=self.BG_COLOR)
 
@@ -63,24 +65,19 @@ class AppWindow(tk.Tk):
         ttk.Label(operations_container, text="Operação:", font=('Segoe UI', 11, 'bold')).pack(side=tk.LEFT, padx=(0,10), anchor='w')
 
         self.operations_map = {
-        # --- Solução de Sistemas ---
-        "Resolver AX = B (pela Inversa)": "solve_axb",
-        # --- Análise de Matriz A ---
-        "Determinante de A": "det_a",
-        "Inversa de A": "inverse_a",
-        "Transposta de A": "transpose_a",
-        # --- Operações entre Matrizes ---
-        "A + B (Soma)": "+",
-        "A - B (Subtração)": "-",
-        "A * B (Multiplicação Matricial)": "*",
-        # --- Operações com Escalar ---
-        "A * k (Multiplicação por Escalar)": "scalar_a",
+            "Resolver Sistema AX=B (Método da Inversa)": "solve_axb",
+            "Determinante (de Matriz A)": "det_a",
+            "Transpor (Matriz A)": "transpose_a",
+            "Soma (A + B)": "+",
+            "Subtração (A - B)": "-",
+            "Multiplicação (A * B)": "*",
+            "Multiplicar por Escalar (A * k)": "scalar_a",
         }
         self.operation_var = tk.StringVar()
         self.operation_combobox = ttk.Combobox(operations_container, textvariable=self.operation_var,
-                                               values=list(self.operations_map.keys()), state="readonly", width=30)
+                                               values=list(self.operations_map.keys()), state="readonly", width=35)
         self.operation_combobox.pack(side=tk.LEFT, padx=(0,20), fill=tk.X, expand=True)
-        self.operation_combobox.set(list(self.operations_map.keys())[0])
+        self.operation_combobox.set(list(self.operations_map.keys())[0]) # Padrão
         self.operation_combobox.bind("<<ComboboxSelected>>", self.on_operation_change)
 
         self.scalar_label = ttk.Label(operations_container, text="Escalar:")
@@ -169,12 +166,27 @@ class AppWindow(tk.Tk):
                 if solution_matrix:
                     solution_text_parts = ["Solução X:"]
                     var_names = [f"x{i+1}" for i in range(len(solution_matrix))]
+                    
                     for i, row in enumerate(solution_matrix):
                         val = row[0]
+                        # AJUSTE PARA ARREDONDAMENTO AQUI (para solução AX=B)
+                        if abs(val) < self.EPSILON:
+                            val = 0.0 
+                        
                         val_str = str(int(val)) if isinstance(val, float) and val.is_integer() else f"{val:.4g}"
+                        if val == 0.0: # Garante "0" em vez de "0.0" ou "0.0000e+00"
+                            val_str = "0"
+                        # Caso a formatação .4g resulte em algo como "0.000e+00" que float() interpreta como 0
+                        elif "e" in val_str:
+                            try:
+                                if float(val_str) == 0.0:
+                                    val_str = "0"
+                            except ValueError:
+                                pass # Mantém val_str original se não puder converter para float (improvável aqui)
+
                         solution_text_parts.append(f"  {var_names[i]} = {val_str}")
                     self.display_result("\n".join(solution_text_parts))
-                    return # Importante: evita a formatação de matriz padrão abaixo
+                    return 
             elif op == "scalar_a":
                 try: scalar_str = self.scalar_var.get(); scalar = float(scalar_str) if '.' in scalar_str or 'e' in scalar_str.lower() else int(scalar_str)
                 except ValueError: messagebox.showerror("Erro", "Escalar inválido."); self.display_result(""); return
@@ -183,30 +195,70 @@ class AppWindow(tk.Tk):
             elif op == "det_a": result = ops.determinant(matrix_a)
 
             if result is not None: self.display_result(result)
-            # Não precisa de 'else' aqui se solve_axb já fez display e retornou
         except ValueError as e: messagebox.showerror("Erro de Cálculo", str(e)); self.display_result(f"Erro: {e}")
         except Exception as e: messagebox.showerror("Erro Inesperado", f"{type(e).__name__}: {e}"); self.display_result(f"Erro: {type(e).__name__} - {e}")
+
+    def _format_number_for_display(self, num_val):
+        """Função auxiliar para formatar números, incluindo arredondamento para zero."""
+        val_to_format = num_val
+        if isinstance(num_val, float) and abs(num_val) < self.EPSILON:
+            val_to_format = 0.0
+
+        if isinstance(val_to_format, float) and val_to_format.is_integer():
+            s_v = str(int(val_to_format))
+        elif isinstance(val_to_format, float):
+            s_v = f"{val_to_format:.4g}" # Notação geral primeiro
+            # Refinamento para .2f se aplicável e melhora a leitura
+            if '.' in s_v and abs(val_to_format) < 1e5 and abs(val_to_format) > 1e-3:
+                try:
+                    num_digits_after_decimal = len(s_v.split('.')[1].rstrip('0')) if 'e' not in s_v.lower() else 4 # Heurística
+                    if num_digits_after_decimal > 2 and 'e' not in s_v.lower():
+                         s_v = f"{val_to_format:.2f}"
+                except IndexError: # Não tem parte decimal após split
+                    pass
+            if val_to_format == 0.0: # Garante que se for exatamente zero após arredondamento, mostre "0"
+                s_v = "0"
+            elif "e" in s_v: # Se ainda for notação científica
+                try:
+                    if float(s_v) == 0.0: # E essa notação representa zero
+                        s_v = "0"
+                except ValueError:
+                    pass # Mantém s_v se não puder ser convertido
+        else: # int
+            s_v = str(val_to_format)
+        return s_v
 
     def display_result(self, result_data):
         self.result_text.config(state=tk.NORMAL, background=self.INPUT_BG_COLOR, foreground=self.TEXT_COLOR)
         self.result_text.delete("1.0", tk.END)
-        if isinstance(result_data, str): self.result_text.insert(tk.END, result_data)
-        elif isinstance(result_data, list) and result_data:
-            if not isinstance(result_data[0], list): self.result_text.insert(tk.END, str(result_data))
-            else:
-                max_len = 0; str_mat = []
-                for r in result_data:
+
+        if isinstance(result_data, str): # Para mensagens diretas como a solução AX=B formatada ou erros
+            self.result_text.insert(tk.END, result_data)
+        elif isinstance(result_data, list) and result_data: # Matriz
+            if not isinstance(result_data[0], list): # Lista simples (improvável para resultado de matriz, mas trata)
+                formatted_list = [self._format_number_for_display(item) for item in result_data]
+                self.result_text.insert(tk.END, str(formatted_list))
+            else: # Matriz aninhada
+                max_len = 0
+                str_mat = []
+                for r_data in result_data:
                     s_r = []
-                    for v in r:
-                        s_v = str(int(v)) if isinstance(v,float) and v.is_integer() else (f"{v:.2f}" if isinstance(v,float) and abs(v)<1e5 and abs(v)>1e-3 and '.' in f"{v:.4g}" and len(f"{v:.4g}".split('.')[1])>2 else f"{v:.4g}")
-                        if len(s_v)>max_len: max_len=len(s_v)
+                    for v_data in r_data:
+                        # NOVA LÓGICA DE ARREDONDAMENTO E FORMATAÇÃO USANDO FUNÇÃO AUXILIAR
+                        s_v = self._format_number_for_display(v_data)
+                        if len(s_v) > max_len:
+                            max_len = len(s_v)
                         s_r.append(s_v)
                     str_mat.append(s_r)
-                for r_s in str_mat: self.result_text.insert(tk.END, f"  | {'  '.join(v.rjust(max_len) for v in r_s)} |  \n")
-        elif isinstance(result_data, (int, float)):
-            val_s = str(int(result_data)) if isinstance(result_data,float) and result_data.is_integer() else (f"{result_data:.2f}" if isinstance(result_data,float) and abs(result_data)<1e5 and abs(result_data)>1e-3 and '.' in f"{result_data:.4g}" and len(f"{result_data:.4g}".split('.')[1])>2 else f"{result_data:.4g}")
+                
+                for r_s_vals in str_mat:
+                    self.result_text.insert(tk.END, f"  | {'  '.join(val_str.rjust(max_len) for val_str in r_s_vals)} |  \n")
+        elif isinstance(result_data, (int, float)): # Número único (ex: determinante)
+            # NOVA LÓGICA DE ARREDONDAMENTO E FORMATAÇÃO USANDO FUNÇÃO AUXILIAR
+            val_s = self._format_number_for_display(result_data)
             self.result_text.insert(tk.END, f"Valor: {val_s}")
-        else: self.result_text.insert(tk.END, str(result_data))
+        else: # Outros tipos (improvável, mas trata como string)
+            self.result_text.insert(tk.END, str(result_data))
         self.result_text.config(state=tk.DISABLED)
 
     def clear_all(self):
@@ -215,3 +267,7 @@ class AppWindow(tk.Tk):
         self.result_text.config(state=tk.NORMAL); self.result_text.delete("1.0", tk.END); self.result_text.config(state=tk.DISABLED)
         self.operation_combobox.set(list(self.operations_map.keys())[0])
         self.on_operation_change()
+
+# if __name__ == '__main__':
+#     app = AppWindow()
+#     app.mainloop()
