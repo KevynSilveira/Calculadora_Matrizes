@@ -1,3 +1,4 @@
+
 # gui/styles.py
 
 # Este arquivo pode ser usado para definir constantes de estilo
