@@ -1,273 +1,235 @@
-# gui/app_window.py
-import tkinter as tk
-from tkinter import ttk, messagebox
-from gui.matrix_input_frame import MatrixInputFrame
-from logic import matrix_operations as ops
+# calculadora_matrizes/gui/app_window.py
+import customtkinter as ctk
+from tkinter import messagebox
+from .matrix_input_frame import MatrixInputFrame
+from logic import (
+    add_matrices, subtract_matrices, multiply_matrices, scalar_multiply,
+    transpose_matrix, determinant, inverse_matrix, solve_linear_system_inverse
+)
 
-class AppWindow(tk.Tk):
+class AppWindow(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Calculadora de Matrizes")
-        self.geometry("900x680")
-        self.minsize(750, 550)
-
-        self.BG_COLOR = "#f0f0f0"
-        self.INPUT_BG_COLOR = "#ffffff"
-        self.TEXT_COLOR = "#333333"
-        self.ACCENT_COLOR = "#007AFF"
-        self.BORDER_COLOR = "#d0d0d0"
-        self.ACCENT_TEXT_COLOR = "#ffffff"
-        self.EPSILON = 1e-12 # Tolerância para considerar um número como zero
-
-        self.configure(background=self.BG_COLOR)
-
-        s = ttk.Style()
-        try:
-            available_themes = s.theme_names()
-            if 'clam' in available_themes: s.theme_use('clam')
-            elif 'alt' in available_themes: s.theme_use('alt')
-        except tk.TclError:
-            print("Tema ttk padrão será usado.")
-
-        s.configure('.', background=self.BG_COLOR, foreground=self.TEXT_COLOR, font=('Segoe UI', 10))
-        s.configure('TFrame', background=self.BG_COLOR)
-        s.configure('TLabel', background=self.BG_COLOR, foreground=self.TEXT_COLOR)
-        s.configure('Title.TLabel', font=('Segoe UI', 16, 'bold'), background=self.BG_COLOR)
-        s.configure('TButton', padding=(10, 6), relief="flat", font=('Segoe UI', 10, 'normal'), borderwidth=1, background=self.INPUT_BG_COLOR, foreground=self.TEXT_COLOR)
-        s.map('TButton', background=[('active', '#e0e0e0'), ('pressed', '#cccccc')], relief=[('pressed', 'sunken'), ('!pressed', 'flat')])
-        s.configure('Accent.TButton', font=('Segoe UI', 11, 'bold'), background=self.ACCENT_COLOR, foreground=self.ACCENT_TEXT_COLOR)
-        s.map('Accent.TButton', background=[('active', '#0056b3'), ('pressed', '#004085')], relief=[('pressed', 'sunken'), ('!pressed', 'flat')])
-        s.configure('TSpinbox', padding=5, relief='flat', arrowsize=12, borderwidth=1, background=self.INPUT_BG_COLOR, foreground=self.TEXT_COLOR, bordercolor=self.BORDER_COLOR, fieldbackground=self.INPUT_BG_COLOR)
-        s.map('TSpinbox', bordercolor=[('focus', self.ACCENT_COLOR)])
-        s.configure('TEntry', padding=(5,6), relief='flat', borderwidth=1, background=self.INPUT_BG_COLOR, foreground=self.TEXT_COLOR, bordercolor=self.BORDER_COLOR, fieldbackground=self.INPUT_BG_COLOR)
-        s.map('TEntry', bordercolor=[('focus', self.ACCENT_COLOR)])
-        s.configure('TCombobox', padding=(5,6), relief='flat', arrowsize=12)
-        s.map('TCombobox', fieldbackground=[('readonly', self.INPUT_BG_COLOR)], foreground=[('readonly', self.TEXT_COLOR)], selectbackground=[('readonly', self.INPUT_BG_COLOR)], selectforeground=[('readonly', self.TEXT_COLOR)], bordercolor=[('focus', self.ACCENT_COLOR), ('!focus', self.BORDER_COLOR)], relief=[('focus', 'flat'), ('!focus', 'flat')])
-        self.option_add('*TCombobox*Listbox.font', ('Segoe UI', 10))
-        self.option_add('*TCombobox*Listbox.background', self.INPUT_BG_COLOR)
-        self.option_add('*TCombobox*Listbox.foreground', self.TEXT_COLOR)
-        self.option_add('*TCombobox*Listbox.selectBackground', self.ACCENT_COLOR)
-        self.option_add('*TCombobox*Listbox.selectForeground', self.ACCENT_TEXT_COLOR)
-        self.option_add('*TCombobox*Listbox.relief', 'flat'); self.option_add('*TCombobox*Listbox.bd', 0)
-
-        main_frame = ttk.Frame(self, padding="20 20 20 20")
-        main_frame.pack(expand=True, fill=tk.BOTH)
-        main_frame.columnconfigure(0, weight=1); main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(2, weight=1)
-
-        self.matrix_a_frame = MatrixInputFrame(main_frame, title="Matriz A")
-        self.matrix_a_frame.grid(row=0, column=0, padx=(0,15), pady=(0,20), sticky="nsew")
-        self.matrix_b_frame = MatrixInputFrame(main_frame, title="Matriz B")
-        self.matrix_b_frame.grid(row=0, column=1, padx=(15,0), pady=(0,20), sticky="nsew")
-
-        operations_container = ttk.Frame(main_frame)
-        operations_container.grid(row=1, column=0, columnspan=2, pady=(0, 20), sticky="ew")
-        ttk.Label(operations_container, text="Operação:", font=('Segoe UI', 11, 'bold')).pack(side=tk.LEFT, padx=(0,10), anchor='w')
-
-        self.operations_map = {
-            "Resolver Sistema AX=B (Método da Inversa)": "solve_axb",
-            "Determinante (de Matriz A)": "det_a",
-            "Transpor (Matriz A)": "transpose_a",
-            "Soma (A + B)": "+",
-            "Subtração (A - B)": "-",
-            "Multiplicação (A * B)": "*",
-            "Multiplicar por Escalar (A * k)": "scalar_a",
-        }
-        self.operation_var = tk.StringVar()
-        self.operation_combobox = ttk.Combobox(operations_container, textvariable=self.operation_var,
-                                               values=list(self.operations_map.keys()), state="readonly", width=35)
-        self.operation_combobox.pack(side=tk.LEFT, padx=(0,20), fill=tk.X, expand=True)
-        self.operation_combobox.set(list(self.operations_map.keys())[0]) # Padrão
-        self.operation_combobox.bind("<<ComboboxSelected>>", self.on_operation_change)
-
-        self.scalar_label = ttk.Label(operations_container, text="Escalar:")
-        self.scalar_var = tk.StringVar(value="1")
-        self.scalar_entry = ttk.Entry(operations_container, textvariable=self.scalar_var, width=8)
-
-        buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.grid(row=3, column=0, columnspan=2, pady=(20, 0), sticky="e")
-        self.clear_button = ttk.Button(buttons_frame, text="Limpar Tudo", command=self.clear_all)
-        self.clear_button.pack(side=tk.LEFT, padx=(0,10))
-        self.calculate_button = ttk.Button(buttons_frame, text="Calcular", command=self.perform_calculation, style='Accent.TButton')
-        self.calculate_button.pack(side=tk.LEFT)
-
-        result_container = ttk.Frame(main_frame)
-        result_container.grid(row=2, column=0, columnspan=2, pady=0, sticky="nsew")
-        result_container.rowconfigure(1, weight=1); result_container.columnconfigure(0, weight=1)
-        ttk.Label(result_container, text="Resultado", style='Title.TLabel').grid(row=0, column=0, sticky="w", pady=(0,8))
-        text_frame = ttk.Frame(result_container, style="Result.TFrame")
-        s.configure("Result.TFrame", background=self.INPUT_BG_COLOR, relief="solid", borderwidth=1, bordercolor=self.BORDER_COLOR)
-        text_frame.grid(row=1, column=0, sticky="nsew"); text_frame.rowconfigure(0, weight=1); text_frame.columnconfigure(0, weight=1)
-        self.result_text = tk.Text(text_frame, height=10, width=50, wrap=tk.NONE, state=tk.DISABLED, font=("Consolas", 11), relief=tk.FLAT, borderwidth=0, padx=10, pady=10, background=self.INPUT_BG_COLOR, foreground=self.TEXT_COLOR, highlightthickness=0)
-        ys = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=self.result_text.yview)
-        xs = ttk.Scrollbar(text_frame, orient=tk.HORIZONTAL, command=self.result_text.xview)
-        self.result_text.configure(yscrollcommand=ys.set, xscrollcommand=xs.set)
-        self.result_text.grid(row=0, column=0, sticky="nsew"); ys.grid(row=0, column=1, sticky="ns"); xs.grid(row=1, column=0, sticky="ew")
+        self.title("Calculadora de Matrizes Elegante")
+        self.geometry("950x880") 
         
-        self.on_operation_change()
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1) # Linha principal do conteúdo
 
-    def on_operation_change(self, event=None):
-        selected_operation_text = self.operation_var.get()
-        op_value = self.operations_map.get(selected_operation_text)
-        self.scalar_label.pack_forget(); self.scalar_entry.pack_forget()
-        self.scalar_entry.config(state=tk.DISABLED)
+        self.main_content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_content_frame.grid(row=0, column=0, sticky="nsew", padx=25, pady=25)
+        self.main_content_frame.grid_columnconfigure(0, weight=1) 
+        self.main_content_frame.grid_columnconfigure(1, weight=1) # Permitir que ambas as colunas tenham peso igual inicialmente
 
-        if op_value == "scalar_a":
-            self.scalar_label.pack(side=tk.LEFT, padx=(0,5), after=self.operation_combobox)
-            self.scalar_entry.pack(side=tk.LEFT, after=self.scalar_label)
-            self.scalar_entry.config(state=tk.NORMAL)
-            self.matrix_b_frame.set_enabled(False)
-            self.matrix_a_frame.update_title_text("Matriz (para Escalar)")
-            self.matrix_b_frame.update_title_text("Matriz B (Desabilitada)")
-        elif op_value in ["+", "-", "*"]:
-            self.matrix_b_frame.set_enabled(True)
-            self.matrix_a_frame.update_title_text("Matriz A")
-            self.matrix_b_frame.update_title_text("Matriz B")
-        elif op_value == "solve_axb":
-            self.matrix_b_frame.set_enabled(True)
-            self.matrix_a_frame.update_title_text("Matriz A (Coeficientes)")
-            self.matrix_b_frame.update_title_text("Vetor B (Termos Independentes)")
-        elif op_value in ["transpose_a", "det_a"]:
-            self.matrix_b_frame.set_enabled(False)
-            title = "Matriz (para Transpor)" if op_value == "transpose_a" else "Matriz (para Determinante)"
-            self.matrix_a_frame.update_title_text(title)
-            self.matrix_b_frame.update_title_text("Matriz B (Desabilitada)")
+        # --- Matriz A e Escalar (Coluna Esquerda) ---
+        left_column_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
+        left_column_frame.grid(row=0, column=0, sticky="new", padx=(0, 10))
+        left_column_frame.grid_columnconfigure(0, weight=1)
+
+        self.matrix_a_frame = MatrixInputFrame(left_column_frame, title="Matriz A", max_dim=10)
+        self.matrix_a_frame.grid(row=0, column=0, sticky="ew")
+        self.matrix_a_frame.master_app = self 
+
+        self.scalar_input_outer_frame = ctk.CTkFrame(left_column_frame, fg_color="transparent")
+        # grid será chamado em on_operation_change
+        
+        self.scalar_input_frame = ctk.CTkFrame(self.scalar_input_outer_frame, fg_color="transparent")
+        self.scalar_input_frame.pack() 
+        ctk.CTkLabel(self.scalar_input_frame, text="Escalar:", font=("Segoe UI", 14)).pack(side=ctk.LEFT, padx=(0,8))
+        self.scalar_var = ctk.StringVar(value="1")
+        self.scalar_entry = ctk.CTkEntry(self.scalar_input_frame, textvariable=self.scalar_var, width=120, font=("Segoe UI", 13))
+        self.scalar_entry.pack(side=ctk.LEFT)
+
+        # --- Matriz B (Coluna Direita) ---
+        self.right_column_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
+        # grid será chamado em on_operation_change
+
+        self.matrix_b_frame = MatrixInputFrame(self.right_column_frame, title="Matriz B / Vetor B", max_dim=10)
+        self.matrix_b_frame.pack(fill="x", expand=True, padx=0, pady=0) 
+        
+        # --- Operations ---
+        operations_main_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
+        operations_main_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(25, 20))
+        operations_main_frame.grid_columnconfigure(0, weight=1)
+
+        self.operation_options = [
+            "Adição (A + B)", "Subtração (A - B)", "Multiplicação (A * B)",
+            "Multiplicação por Escalar (k * A)", "Transposição (A)",
+            "Determinante (A)", "Inversa (A)", "Resolver Sistema (AX = B)"
+        ]
+        self.selected_operation_var = ctk.StringVar(value=self.operation_options[0])
+        
+        self.operation_combobox = ctk.CTkComboBox(
+            operations_main_frame, values=self.operation_options, variable=self.selected_operation_var,
+            font=("Segoe UI", 15), dropdown_font=("Segoe UI", 14), command=self.on_operation_change,
+            height=38, border_width=1
+        )
+        self.operation_combobox.grid(row=0, column=0, sticky="ew", padx=70, ipady=4)
+
+        self.calculate_button = ctk.CTkButton(
+            operations_main_frame, text="Calcular", command=self.execute_selected_operation,
+            font=("Segoe UI", 17, "bold"), height=50, width=280, corner_radius=8
+        )
+        self.calculate_button.grid(row=1, column=0, pady=(20, 25))
+
+        # --- Result Section ---
+        result_section_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
+        result_section_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(10,15))
+        result_section_frame.grid_columnconfigure(0, weight=1)
+        result_section_frame.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(result_section_frame, text="Resultado:", font=("Segoe UI", 18, "bold")).grid(row=0, column=0, sticky="w", pady=(0,8))
+        self.result_textbox = ctk.CTkTextbox(
+            result_section_frame, height=220, font=("Consolas", 15), wrap="none", activate_scrollbars=True, border_width=1
+        )
+        self.result_textbox.grid(row=1, column=0, sticky="nsew")
+        self.result_textbox.configure(state=ctk.DISABLED)
+        self.main_content_frame.grid_rowconfigure(2, weight=1) 
+
+        # --- Status Bar ---
+        status_bar_frame = ctk.CTkFrame(self, height=35, corner_radius=0, border_width=1, border_color=("gray60", "gray30"))
+        status_bar_frame.grid(row=1, column=0, sticky="ew") 
+        self.status_label = ctk.CTkLabel(status_bar_frame, text="Pronto.", anchor="w", font=("Segoe UI", 12))
+        self.status_label.pack(side=ctk.LEFT, padx=15, pady=5)
+
+        self.on_operation_change() 
+
+    def on_dimension_change_matrix_a(self):
+        selected_op_str = self.selected_operation_var.get()
+        if "Resolver Sistema" in selected_op_str and self.right_column_frame.winfo_ismapped():
+            rows_a_str = self.matrix_a_frame.rows_var_str.get()
+            self.matrix_b_frame.rows_var_str.set(rows_a_str)
+            self.matrix_b_frame.create_matrix_entries_from_dim_input() 
+            self.matrix_b_frame.cols_entry.configure(state=ctk.DISABLED) 
+
+    def on_operation_change(self, choice=None):
+        selected_op_str = self.selected_operation_var.get()
+        
+        # Visibilidade do campo Escalar
+        if "Multiplicação por Escalar" in selected_op_str:
+            self.scalar_input_outer_frame.grid(row=1, column=0, pady=(15, 0), sticky="ew") 
+            self.scalar_entry.configure(state=ctk.NORMAL)
         else:
-            self.matrix_b_frame.set_enabled(False)
-            self.matrix_a_frame.update_title_text("Matriz A")
-            self.matrix_b_frame.update_title_text("Matriz B (Desabilitada)")
+            self.scalar_input_outer_frame.grid_remove() 
+            self.scalar_entry.configure(state=ctk.DISABLED)
 
-    def perform_calculation(self):
-        selected_operation_text = self.operation_var.get()
-        op = self.operations_map.get(selected_operation_text)
-        if not op: messagebox.showerror("Erro", "Selecione uma operação."); return
+        # Gerenciamento da Matriz B e layout das colunas principais
+        # Operações que NÃO usam Matriz B
+        if " (A)" in selected_op_str or "Multiplicação por Escalar" in selected_op_str: # CONDIÇÃO ATUALIZADA AQUI
+            self.right_column_frame.grid_remove() 
+            self.matrix_b_frame.set_enabled(False)
+            self.main_content_frame.grid_columnconfigure(1, weight=0) 
+            self.main_content_frame.grid_columnconfigure(0, weight=1) 
+        else: # Operações que usam Matriz B (Adição, Subtração, Multiplicação A*B, Resolver Sistema)
+            self.right_column_frame.grid(row=0, column=1, sticky="new", padx=(10, 0)) 
+            self.matrix_b_frame.set_enabled(True)
+            self.main_content_frame.grid_columnconfigure(1, weight=1) 
+            self.main_content_frame.grid_columnconfigure(0, weight=1)
+
+            # Configurações específicas para as operações que usam B
+            if "Resolver Sistema" in selected_op_str:
+                self.matrix_a_frame.update_title_text("Matriz A (Coeficientes)")
+                self.matrix_b_frame.update_title_text("Vetor B (Termos)")
+                self.on_dimension_change_matrix_a() 
+            else: # A+B, A-B, A*B
+                self.matrix_a_frame.update_title_text("Matriz A")
+                self.matrix_b_frame.update_title_text("Matriz B")
+                self.matrix_b_frame.cols_entry.configure(state=ctk.NORMAL)
+                self.matrix_b_frame.rows_entry.configure(state=ctk.NORMAL)
+
+        self.status_label.configure(text=f"Operação: {selected_op_str}")
+
+    def _get_scalar(self):
+        try:
+            s_str = self.scalar_var.get()
+            if not s_str.strip(): self.scalar_var.set("1"); return 1.0 
+            return float(s_str) if '.' in s_str or 'e' in s_str.lower() else int(s_str)
+        except ValueError: self.show_error("Valor escalar inválido."); return None
+
+    def format_matrix_for_display(self, matrix):
+        if isinstance(matrix, (int, float)): return str(matrix)
+        if not matrix or not matrix[0]: return "[ Matriz Vazia ]"
+        
+        col_widths = [0] * len(matrix[0])
+        str_matrix = []
+        for r_idx, row_val in enumerate(matrix):
+            str_row = []
+            for c_idx, val in enumerate(row_val):
+                s_val = f"{val:.4g}".rstrip('0').rstrip('.') if isinstance(val, float) else str(val)
+                if s_val == "-0": s_val = "0" 
+                str_row.append(s_val)
+                col_widths[c_idx] = max(col_widths[c_idx], len(s_val))
+            str_matrix.append(str_row)
+
+        display_str = ""
+        for str_row_val in str_matrix:
+            line = "  ["
+            for c_idx, s_val in enumerate(str_row_val):
+                line += f"{s_val:>{col_widths[c_idx]}}" 
+                if c_idx < len(str_row_val) - 1: line += "  " 
+            line += "]\n"
+            display_str += line
+        return display_str.strip()
+
+    def display_result(self, result_data, operation_name=""):
+        self.result_textbox.configure(state=ctk.NORMAL)
+        self.result_textbox.delete("1.0", ctk.END)
+        formatted_output = self.format_matrix_for_display(result_data)
+        self.result_textbox.insert("1.0", formatted_output)
+        self.result_textbox.configure(state=ctk.DISABLED)
+        self.show_success(f"'{operation_name}' calculado.")
+
+    def show_error(self, message):
+        messagebox.showerror("Erro", message, parent=self)
+        self.status_label.configure(text=f"Erro: {message}")
+
+    def show_success(self, message="Operação concluída."):
+        self.status_label.configure(text=message)
+
+    def execute_selected_operation(self):
+        selected_op_str = self.selected_operation_var.get()
+        self.on_operation_change() 
 
         matrix_a = self.matrix_a_frame.get_matrix()
-        if matrix_a is None: self.display_result(""); return
-        result = None
+        if matrix_a is None: return
+
+        result, op_func, needs_b, needs_scalar, is_solve = None, None, False, False, False
+        
+        op_map = {
+            "Adição (A + B)": (add_matrices, True, False, False),
+            "Subtração (A - B)": (subtract_matrices, True, False, False),
+            "Multiplicação (A * B)": (multiply_matrices, True, False, False),
+            "Multiplicação por Escalar (k * A)": (scalar_multiply, False, True, False),
+            "Transposição (A)": (transpose_matrix, False, False, False),
+            "Determinante (A)": (determinant, False, False, False),
+            "Inversa (A)": (inverse_matrix, False, False, False),
+            "Resolver Sistema (AX = B)": (solve_linear_system_inverse, True, False, True)
+        }
+
+        if selected_op_str in op_map:
+            op_func, needs_b, needs_scalar, is_solve = op_map[selected_op_str]
+        else: self.show_error("Operação não mapeada."); return
+
         try:
-            if op in ["+", "-", "*"]:
-                if not self.matrix_b_frame.is_enabled(): messagebox.showerror("Erro", "Matriz B desabilitada."); return
+            args = [matrix_a]
+            if needs_b: 
+                if not self.right_column_frame.winfo_ismapped(): 
+                    self.show_error(f"Matriz B é necessária para '{selected_op_str}' mas não está visível.")
+                    return
                 matrix_b = self.matrix_b_frame.get_matrix()
-                if matrix_b is None: self.display_result(""); return
-                if op == "+": result = ops.add_matrices(matrix_a, matrix_b)
-                elif op == "-": result = ops.subtract_matrices(matrix_a, matrix_b)
-                elif op == "*": result = ops.multiply_matrices(matrix_a, matrix_b)
-            elif op == "solve_axb":
-                if not self.matrix_b_frame.is_enabled(): messagebox.showerror("Erro", "Vetor B desabilitado."); return
-                vector_b_input = self.matrix_b_frame.get_matrix()
-                if vector_b_input is None: self.display_result(""); return
-                if not vector_b_input or not vector_b_input[0] or len(vector_b_input[0]) != 1:
-                    messagebox.showerror("Erro", "Vetor B deve ser Nx1."); self.display_result("Erro: Vetor B deve ser Nx1."); return
-                if len(matrix_a) != len(vector_b_input):
-                     messagebox.showerror("Erro", "Linhas de A != Linhas de B."); self.display_result("Erro: Linhas de A != Linhas de B."); return
-                
-                solution_matrix = ops.solve_linear_system_inverse(matrix_a, vector_b_input)
-                if solution_matrix:
-                    solution_text_parts = ["Solução X:"]
-                    var_names = [f"x{i+1}" for i in range(len(solution_matrix))]
-                    
-                    for i, row in enumerate(solution_matrix):
-                        val = row[0]
-                        # AJUSTE PARA ARREDONDAMENTO AQUI (para solução AX=B)
-                        if abs(val) < self.EPSILON:
-                            val = 0.0 
-                        
-                        val_str = str(int(val)) if isinstance(val, float) and val.is_integer() else f"{val:.4g}"
-                        if val == 0.0: # Garante "0" em vez de "0.0" ou "0.0000e+00"
-                            val_str = "0"
-                        # Caso a formatação .4g resulte em algo como "0.000e+00" que float() interpreta como 0
-                        elif "e" in val_str:
-                            try:
-                                if float(val_str) == 0.0:
-                                    val_str = "0"
-                            except ValueError:
-                                pass # Mantém val_str original se não puder converter para float (improvável aqui)
+                if matrix_b is None: return
+                args.append(matrix_b)
+            
+            if needs_scalar:
+                if not self.scalar_input_outer_frame.winfo_ismapped():
+                     self.show_error(f"Escalar é necessário para '{selected_op_str}' mas não está visível.")
+                     return
+                scalar_val = self._get_scalar()
+                if scalar_val is None: return
+                args.append(scalar_val)
 
-                        solution_text_parts.append(f"  {var_names[i]} = {val_str}")
-                    self.display_result("\n".join(solution_text_parts))
-                    return 
-            elif op == "scalar_a":
-                try: scalar_str = self.scalar_var.get(); scalar = float(scalar_str) if '.' in scalar_str or 'e' in scalar_str.lower() else int(scalar_str)
-                except ValueError: messagebox.showerror("Erro", "Escalar inválido."); self.display_result(""); return
-                result = ops.scalar_multiply(matrix_a, scalar)
-            elif op == "transpose_a": result = ops.transpose_matrix(matrix_a)
-            elif op == "det_a": result = ops.determinant(matrix_a)
+            result = op_func(*args)
+            self.display_result(result, selected_op_str)
 
-            if result is not None: self.display_result(result)
-        except ValueError as e: messagebox.showerror("Erro de Cálculo", str(e)); self.display_result(f"Erro: {e}")
-        except Exception as e: messagebox.showerror("Erro Inesperado", f"{type(e).__name__}: {e}"); self.display_result(f"Erro: {type(e).__name__} - {e}")
-
-    def _format_number_for_display(self, num_val):
-        """Função auxiliar para formatar números, incluindo arredondamento para zero."""
-        val_to_format = num_val
-        if isinstance(num_val, float) and abs(num_val) < self.EPSILON:
-            val_to_format = 0.0
-
-        if isinstance(val_to_format, float) and val_to_format.is_integer():
-            s_v = str(int(val_to_format))
-        elif isinstance(val_to_format, float):
-            s_v = f"{val_to_format:.4g}" # Notação geral primeiro
-            # Refinamento para .2f se aplicável e melhora a leitura
-            if '.' in s_v and abs(val_to_format) < 1e5 and abs(val_to_format) > 1e-3:
-                try:
-                    num_digits_after_decimal = len(s_v.split('.')[1].rstrip('0')) if 'e' not in s_v.lower() else 4 # Heurística
-                    if num_digits_after_decimal > 2 and 'e' not in s_v.lower():
-                         s_v = f"{val_to_format:.2f}"
-                except IndexError: # Não tem parte decimal após split
-                    pass
-            if val_to_format == 0.0: # Garante que se for exatamente zero após arredondamento, mostre "0"
-                s_v = "0"
-            elif "e" in s_v: # Se ainda for notação científica
-                try:
-                    if float(s_v) == 0.0: # E essa notação representa zero
-                        s_v = "0"
-                except ValueError:
-                    pass # Mantém s_v se não puder ser convertido
-        else: # int
-            s_v = str(val_to_format)
-        return s_v
-
-    def display_result(self, result_data):
-        self.result_text.config(state=tk.NORMAL, background=self.INPUT_BG_COLOR, foreground=self.TEXT_COLOR)
-        self.result_text.delete("1.0", tk.END)
-
-        if isinstance(result_data, str): # Para mensagens diretas como a solução AX=B formatada ou erros
-            self.result_text.insert(tk.END, result_data)
-        elif isinstance(result_data, list) and result_data: # Matriz
-            if not isinstance(result_data[0], list): # Lista simples (improvável para resultado de matriz, mas trata)
-                formatted_list = [self._format_number_for_display(item) for item in result_data]
-                self.result_text.insert(tk.END, str(formatted_list))
-            else: # Matriz aninhada
-                max_len = 0
-                str_mat = []
-                for r_data in result_data:
-                    s_r = []
-                    for v_data in r_data:
-                        # NOVA LÓGICA DE ARREDONDAMENTO E FORMATAÇÃO USANDO FUNÇÃO AUXILIAR
-                        s_v = self._format_number_for_display(v_data)
-                        if len(s_v) > max_len:
-                            max_len = len(s_v)
-                        s_r.append(s_v)
-                    str_mat.append(s_r)
-                
-                for r_s_vals in str_mat:
-                    self.result_text.insert(tk.END, f"  | {'  '.join(val_str.rjust(max_len) for val_str in r_s_vals)} |  \n")
-        elif isinstance(result_data, (int, float)): # Número único (ex: determinante)
-            # NOVA LÓGICA DE ARREDONDAMENTO E FORMATAÇÃO USANDO FUNÇÃO AUXILIAR
-            val_s = self._format_number_for_display(result_data)
-            self.result_text.insert(tk.END, f"Valor: {val_s}")
-        else: # Outros tipos (improvável, mas trata como string)
-            self.result_text.insert(tk.END, str(result_data))
-        self.result_text.config(state=tk.DISABLED)
-
-    def clear_all(self):
-        self.matrix_a_frame.clear_entries(); self.matrix_b_frame.clear_entries()
-        self.scalar_var.set("1")
-        self.result_text.config(state=tk.NORMAL); self.result_text.delete("1.0", tk.END); self.result_text.config(state=tk.DISABLED)
-        self.operation_combobox.set(list(self.operations_map.keys())[0])
-        self.on_operation_change()
-
-# if __name__ == '__main__':
-#     app = AppWindow()
-#     app.mainloop()
+        except ValueError as e: self.show_error(str(e))
+        except Exception as e: self.show_error(f"Erro inesperado ({type(e).__name__}): {str(e)}")
