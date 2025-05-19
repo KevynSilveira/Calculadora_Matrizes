@@ -11,17 +11,16 @@ class AppWindow(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Calculadora de Matrizes Elegante")
-        self.geometry("950x880") 
+        self.geometry("950x920") 
         
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1) # Linha principal do conteúdo
+        self.grid_rowconfigure(0, weight=1) 
 
         self.main_content_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.main_content_frame.grid(row=0, column=0, sticky="nsew", padx=25, pady=25)
         self.main_content_frame.grid_columnconfigure(0, weight=1) 
-        self.main_content_frame.grid_columnconfigure(1, weight=1) # Permitir que ambas as colunas tenham peso igual inicialmente
+        self.main_content_frame.grid_columnconfigure(1, weight=1) 
 
-        # --- Matriz A e Escalar (Coluna Esquerda) ---
         left_column_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
         left_column_frame.grid(row=0, column=0, sticky="new", padx=(0, 10))
         left_column_frame.grid_columnconfigure(0, weight=1)
@@ -31,7 +30,6 @@ class AppWindow(ctk.CTk):
         self.matrix_a_frame.master_app = self 
 
         self.scalar_input_outer_frame = ctk.CTkFrame(left_column_frame, fg_color="transparent")
-        # grid será chamado em on_operation_change
         
         self.scalar_input_frame = ctk.CTkFrame(self.scalar_input_outer_frame, fg_color="transparent")
         self.scalar_input_frame.pack() 
@@ -40,16 +38,13 @@ class AppWindow(ctk.CTk):
         self.scalar_entry = ctk.CTkEntry(self.scalar_input_frame, textvariable=self.scalar_var, width=120, font=("Segoe UI", 13))
         self.scalar_entry.pack(side=ctk.LEFT)
 
-        # --- Matriz B (Coluna Direita) ---
         self.right_column_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
-        # grid será chamado em on_operation_change
 
         self.matrix_b_frame = MatrixInputFrame(self.right_column_frame, title="Matriz B / Vetor B", max_dim=10)
         self.matrix_b_frame.pack(fill="x", expand=True, padx=0, pady=0) 
         
-        # --- Operations ---
         operations_main_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
-        operations_main_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(25, 20))
+        operations_main_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(25, 15))
         operations_main_frame.grid_columnconfigure(0, weight=1)
 
         self.operation_options = [
@@ -66,13 +61,26 @@ class AppWindow(ctk.CTk):
         )
         self.operation_combobox.grid(row=0, column=0, sticky="ew", padx=70, ipady=4)
 
-        self.calculate_button = ctk.CTkButton(
-            operations_main_frame, text="Calcular", command=self.execute_selected_operation,
-            font=("Segoe UI", 17, "bold"), height=50, width=280, corner_radius=8
-        )
-        self.calculate_button.grid(row=1, column=0, pady=(20, 25))
+        # Frame para os botões Limpar e Calcular
+        action_buttons_frame = ctk.CTkFrame(operations_main_frame, fg_color="transparent")
+        action_buttons_frame.grid(row=1, column=0, pady=(20, 20))
+        # Centraliza o action_buttons_frame no operations_main_frame
+        # operations_main_frame já tem columnconfigure(0, weight=1), então o grid(row=1, column=0) no action_buttons_frame o centralizará
 
-        # --- Result Section ---
+        self.clear_button = ctk.CTkButton( # BOTÃO LIMPAR VEM PRIMEIRO
+            action_buttons_frame, text="Limpar Tudo", command=self.clear_all_fields,
+            font=("Segoe UI", 17, "bold"), height=50, width=200, corner_radius=8,
+            fg_color="gray50", hover_color="gray35" 
+        )
+        self.clear_button.pack(side=ctk.LEFT, padx=(0, 10)) # Empacota à esquerda, com padding à direita
+
+        self.calculate_button = ctk.CTkButton( # BOTÃO CALCULAR VEM DEPOIS
+            action_buttons_frame, text="Calcular", command=self.execute_selected_operation,
+            font=("Segoe UI", 17, "bold"), height=50, width=200, corner_radius=8
+        )
+        self.calculate_button.pack(side=ctk.LEFT, padx=(10, 0)) # Empacota à esquerda, com padding à esquerda
+
+
         result_section_frame = ctk.CTkFrame(self.main_content_frame, fg_color="transparent")
         result_section_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(10,15))
         result_section_frame.grid_columnconfigure(0, weight=1)
@@ -86,13 +94,40 @@ class AppWindow(ctk.CTk):
         self.result_textbox.configure(state=ctk.DISABLED)
         self.main_content_frame.grid_rowconfigure(2, weight=1) 
 
-        # --- Status Bar ---
         status_bar_frame = ctk.CTkFrame(self, height=35, corner_radius=0, border_width=1, border_color=("gray60", "gray30"))
         status_bar_frame.grid(row=1, column=0, sticky="ew") 
         self.status_label = ctk.CTkLabel(status_bar_frame, text="Pronto.", anchor="w", font=("Segoe UI", 12))
         self.status_label.pack(side=ctk.LEFT, padx=15, pady=5)
 
         self.on_operation_change() 
+
+    def clear_all_fields(self):
+        self.matrix_a_frame.clear_entries()
+        # Opcional: Resetar dimensões de A para 2x2 ou outro padrão
+        # self.matrix_a_frame.rows_var_str.set("2")
+        # self.matrix_a_frame.cols_var_str.set("2")
+        # self.matrix_a_frame.create_matrix_entries_from_dim_input()
+
+
+        # Limpa B apenas se estiver visível e habilitada
+        if self.right_column_frame.winfo_ismapped() and self.matrix_b_frame.is_enabled():
+            self.matrix_b_frame.clear_entries()
+            # Opcional: Resetar dimensões de B se não for "Resolver Sistema"
+            # current_op = self.selected_operation_var.get()
+            # if "Resolver Sistema" not in current_op:
+            #     self.matrix_b_frame.rows_var_str.set("2")
+            #     self.matrix_b_frame.cols_var_str.set("2")
+            #     self.matrix_b_frame.create_matrix_entries_from_dim_input()
+        
+        self.scalar_var.set("1") 
+
+        self.result_textbox.configure(state=ctk.NORMAL)
+        self.result_textbox.delete("1.0", ctk.END)
+        self.result_textbox.configure(state=ctk.DISABLED)
+        
+        self.status_label.configure(text="Campos limpos.")
+        self.on_operation_change() # Reconfigura a UI para o estado inicial da operação selecionada
+
 
     def on_dimension_change_matrix_a(self):
         selected_op_str = self.selected_operation_var.get()
@@ -105,7 +140,6 @@ class AppWindow(ctk.CTk):
     def on_operation_change(self, choice=None):
         selected_op_str = self.selected_operation_var.get()
         
-        # Visibilidade do campo Escalar
         if "Multiplicação por Escalar" in selected_op_str:
             self.scalar_input_outer_frame.grid(row=1, column=0, pady=(15, 0), sticky="ew") 
             self.scalar_entry.configure(state=ctk.NORMAL)
@@ -113,25 +147,22 @@ class AppWindow(ctk.CTk):
             self.scalar_input_outer_frame.grid_remove() 
             self.scalar_entry.configure(state=ctk.DISABLED)
 
-        # Gerenciamento da Matriz B e layout das colunas principais
-        # Operações que NÃO usam Matriz B
-        if " (A)" in selected_op_str or "Multiplicação por Escalar" in selected_op_str: # CONDIÇÃO ATUALIZADA AQUI
+        if " (A)" in selected_op_str or "Multiplicação por Escalar" in selected_op_str: 
             self.right_column_frame.grid_remove() 
             self.matrix_b_frame.set_enabled(False)
             self.main_content_frame.grid_columnconfigure(1, weight=0) 
             self.main_content_frame.grid_columnconfigure(0, weight=1) 
-        else: # Operações que usam Matriz B (Adição, Subtração, Multiplicação A*B, Resolver Sistema)
+        else: 
             self.right_column_frame.grid(row=0, column=1, sticky="new", padx=(10, 0)) 
             self.matrix_b_frame.set_enabled(True)
             self.main_content_frame.grid_columnconfigure(1, weight=1) 
             self.main_content_frame.grid_columnconfigure(0, weight=1)
 
-            # Configurações específicas para as operações que usam B
             if "Resolver Sistema" in selected_op_str:
                 self.matrix_a_frame.update_title_text("Matriz A (Coeficientes)")
                 self.matrix_b_frame.update_title_text("Vetor B (Termos)")
                 self.on_dimension_change_matrix_a() 
-            else: # A+B, A-B, A*B
+            else: 
                 self.matrix_a_frame.update_title_text("Matriz A")
                 self.matrix_b_frame.update_title_text("Matriz B")
                 self.matrix_b_frame.cols_entry.configure(state=ctk.NORMAL)
@@ -148,28 +179,52 @@ class AppWindow(ctk.CTk):
 
     def format_matrix_for_display(self, matrix):
         if isinstance(matrix, (int, float)): return str(matrix)
-        if not matrix or not matrix[0]: return "[ Matriz Vazia ]"
-        
-        col_widths = [0] * len(matrix[0])
+        if not matrix or not isinstance(matrix, list) or (not matrix[0] and len(matrix) > 0):
+            return "[ Matriz Vazia ou Inválida ]"
+        if isinstance(matrix[0], list) and not matrix[0]:
+            return "[ Matriz com Linha(s) Vazia(s) ]"
+
         str_matrix = []
+        try:
+            num_cols_check = len(matrix[0]) 
+        except IndexError: 
+             return "[ Matriz com Estrutura Inesperada ]"
+
         for r_idx, row_val in enumerate(matrix):
+            if not isinstance(row_val, list) or len(row_val) != num_cols_check:
+                return f"[ Erro na formatação: Linha {r_idx+1} tem estrutura/tamanho inesperado ]"
             str_row = []
-            for c_idx, val in enumerate(row_val):
+            for val in row_val:
                 s_val = f"{val:.4g}".rstrip('0').rstrip('.') if isinstance(val, float) else str(val)
                 if s_val == "-0": s_val = "0" 
                 str_row.append(s_val)
-                col_widths[c_idx] = max(col_widths[c_idx], len(s_val))
             str_matrix.append(str_row)
 
-        display_str = ""
+        if not str_matrix or not str_matrix[0]:
+             return "[ Matriz Vazia Após Processamento ]"
+
+        num_cols = len(str_matrix[0])
+        col_widths = [0] * num_cols
         for str_row_val in str_matrix:
-            line = "  ["
+            for c_idx, s_val in enumerate(str_row_val):
+                 if c_idx < num_cols: 
+                    col_widths[c_idx] = max(col_widths[c_idx], len(s_val))
+                 else: 
+                    return "[ Erro na formatação: Inconsistência de colunas ]"
+        
+        display_str = ""
+        for r_idx, str_row_val in enumerate(str_matrix):
+            line = "  [" 
             for c_idx, s_val in enumerate(str_row_val):
                 line += f"{s_val:>{col_widths[c_idx]}}" 
-                if c_idx < len(str_row_val) - 1: line += "  " 
-            line += "]\n"
+                if c_idx < num_cols - 1: 
+                    line += "  " 
+            line += "]"
+            if r_idx < len(str_matrix) - 1:
+                line += "\n"
             display_str += line
-        return display_str.strip()
+        
+        return display_str
 
     def display_result(self, result_data, operation_name=""):
         self.result_textbox.configure(state=ctk.NORMAL)
